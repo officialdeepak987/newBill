@@ -118,16 +118,16 @@ textarea { resize: vertical; min-height: 80px; }
 /* ── ITEMS TABLE ── */
 .items-header {
   display: grid;
-  grid-template-columns: 2fr 1fr .8fr .8fr 1fr .9fr 32px;
-  gap: 8px; font-size: .75rem; font-weight: 700;
-  color: var(--gray); text-transform: uppercase; letter-spacing: .7px;
+  grid-template-columns: 1.6fr .7fr 1fr 1fr 1fr .6fr .6fr .7fr .8fr 32px;
+  gap: 6px; font-size: .7rem; font-weight: 700;
+  color: var(--gray); text-transform: uppercase; letter-spacing: .6px;
   padding: 0 4px 8px; border-bottom: 2px solid var(--primary-light);
   margin-bottom: 8px;
 }
 .item-row {
   display: grid;
-  grid-template-columns: 2fr 1fr .8fr .8fr 1fr .9fr 32px;
-  gap: 8px; align-items: start; padding: 6px 4px;
+  grid-template-columns: 1.6fr .7fr 1fr 1fr 1fr .6fr .6fr .7fr .8fr 32px;
+  gap: 6px; align-items: start; padding: 6px 4px;
   border-bottom: 1px solid var(--gray-light);
 }
 .item-row input, .item-row select { font-size: .85rem; padding: 7px 10px; }
@@ -151,7 +151,7 @@ textarea { resize: vertical; min-height: 80px; }
     border-radius: var(--radius-sm); border: 1px solid var(--border);
     margin-bottom: 10px;
   }
-  .item-row > *:last-child { grid-column: span 2; justify-self: end; }
+  .item-row > *:nth-last-child(1) { grid-column: span 2; justify-self: end; }
 }
 
 /* ── SUMMARY CARD ── */
@@ -501,7 +501,7 @@ textarea { resize: vertical; min-height: 80px; }
     <button class="btn btn-ghost btn-sm" onclick="addItem()" style="font-size:.8rem">+ Add Item</button>
   </div>
   <div class="items-header">
-    <span>Item Name</span><span>HSN</span><span>Qty</span><span>Rate (₹)</span><span>Tax %</span><span>Amount</span><span></span>
+    <span>Item Name</span><span>HSN</span><span>Cantolar / Battery No</span><span>Chassis No</span><span>Motor No</span><span>Qty</span><span>Rate (₹)</span><span>Tax %</span><span>Amount</span><span></span>
   </div>
   <div id="items-container"></div>
   <div class="mt-10 text-right">
@@ -710,6 +710,9 @@ function addItem() {
   div.innerHTML = `
     <div><label style="display:none">Item Name</label><input type="text" placeholder="Item name" id="iname-${id}" oninput="recalculate()"></div>
     <div><label>HSN</label><input type="text" placeholder="HSN" id="ihsn-${id}"></div>
+    <div><label>Cantolar / Battery No</label><input type="text" placeholder="Battery / Cantolar No" id="icant-${id}"></div>
+    <div><label>Chassis No</label><input type="text" placeholder="Chassis No" id="ichass-${id}"></div>
+    <div><label>Motor No</label><input type="text" placeholder="Motor No" id="imotor-${id}"></div>
     <div><label>Qty</label><input type="number" placeholder="1" id="iqty-${id}" min="0" value="1" oninput="recalcItemAmount(${id})"></div>
     <div><label>Rate (₹)</label><input type="number" placeholder="0" id="irate-${id}" min="0" oninput="recalcItemAmount(${id})"></div>
     <div><label>Tax %</label>
@@ -753,9 +756,12 @@ function getItems() {
     const rate = parseFloat(document.getElementById(`irate-${id}`)?.value) || 0;
     const tax = parseFloat(document.getElementById(`itax-${id}`)?.value) || 0;
     const hsn = document.getElementById(`ihsn-${id}`)?.value || '';
+    const cant = document.getElementById(`icant-${id}`)?.value || '';
+    const chass = document.getElementById(`ichass-${id}`)?.value || '';
+    const motor = document.getElementById(`imotor-${id}`)?.value || '';
     const base = qty * rate;
     const taxAmt = base * tax / 100;
-    items.push({ id, name, hsn, qty, rate, tax, base, taxAmt, total: base + taxAmt });
+    items.push({ id, name, hsn, cant, chass, motor, qty, rate, tax, base, taxAmt, total: base + taxAmt });
   });
   return items;
 }
@@ -899,6 +905,7 @@ function buildInvoiceHTML() {
       <td>${idx+1}</td>
       <td style="font-weight:600">${it.name}</td>
       <td>${it.hsn}</td>
+      ${it.cant || it.chass || it.motor ? `<td style="font-size:10px;color:#555">${[it.cant,it.chass,it.motor].filter(Boolean).join('<br>')}</td>` : '<td>—</td>'}
       <td style="text-align:center">${it.qty}</td>
       <td style="text-align:right">${fmtN(it.rate)}</td>
       <td style="text-align:center">${it.tax}%</td>
@@ -906,6 +913,9 @@ function buildInvoiceHTML() {
       <td>${fmtN(it.total)}</td>
     </tr>
   `).join('');
+
+  // Check if any item has cantolar/chassis/motor data
+  const hasVehicleFields = items.some(it => it.cant || it.chass || it.motor);
 
   const upi = g('upi-id');
   const qrSection = upi ? `
@@ -965,7 +975,9 @@ function buildInvoiceHTML() {
       <table class="inv-items-table">
         <thead>
           <tr>
-            <th>#</th><th>Item</th><th>HSN</th><th style="text-align:center">Qty</th>
+            <th>#</th><th>Item</th><th>HSN</th>
+            ${hasVehicleFields ? '<th>Cantolar / Battery No<br>Chassis / Motor No</th>' : ''}
+            <th style="text-align:center">Qty</th>
             <th style="text-align:right">Rate</th><th style="text-align:center">Tax</th>
             <th>Tax Amt</th><th style="text-align:right">Amount</th>
           </tr>
@@ -1237,6 +1249,9 @@ function getItemsRaw() {
     rows.push({
       name: document.getElementById(`iname-${id}`)?.value || '',
       hsn: document.getElementById(`ihsn-${id}`)?.value || '',
+      cant: document.getElementById(`icant-${id}`)?.value || '',
+      chass: document.getElementById(`ichass-${id}`)?.value || '',
+      motor: document.getElementById(`imotor-${id}`)?.value || '',
       qty: document.getElementById(`iqty-${id}`)?.value || '1',
       rate: document.getElementById(`irate-${id}`)?.value || '',
       tax: document.getElementById(`itax-${id}`)?.value || '18',
@@ -1276,6 +1291,7 @@ function loadFromLocal(silent = false) {
         const id = itemCount;
         const s2 = (fid, val) => { const el = document.getElementById(fid); if (el && val !== undefined) el.value = val; };
         s2(`iname-${id}`, it.name); s2(`ihsn-${id}`, it.hsn);
+        s2(`icant-${id}`, it.cant); s2(`ichass-${id}`, it.chass); s2(`imotor-${id}`, it.motor);
         s2(`iqty-${id}`, it.qty); s2(`irate-${id}`, it.rate); s2(`itax-${id}`, it.tax);
         recalcItemAmount(id);
       });
@@ -1307,7 +1323,9 @@ function loadDemo() {
   // Clear items and add demo
   document.getElementById('items-container').innerHTML = ''; itemCount = 0;
   addItem();
-  s(`iname-1`,'SAMSUNG GALAXY-F54'); s(`ihsn-1`,'85171300'); s(`iqty-1`,'1'); s(`irate-1`,'21185.59'); s(`itax-1`,'18');
+  s(`iname-1`,'KOMAKI FLOOR XL'); s(`ihsn-1`,'871190');
+  s(`icant-1`,'BATTERY-51V33AH'); s(`ichass-1`,'M0EB30P2W SM020460'); s(`imotor-1`,'KL72V3000 W007063');
+  s(`iqty-1`,'1'); s(`irate-1`,'21185.59'); s(`itax-1`,'18');
   recalcItemAmount(1);
   generateQR();
   recalculate();
