@@ -607,9 +607,9 @@ e.g. 1. Goods once sold will not be taken back.
   <div class="summary-line"><span class="lbl">Subtotal</span><span class="val" id="s-subtotal">₹ 0.00</span></div>
   <div class="summary-line"><span class="lbl">Discount</span><span class="val" id="s-discount" style="color:var(--danger)">- ₹ 0.00</span></div>
   <div class="summary-line"><span class="lbl">Taxable Amount</span><span class="val" id="s-taxable">₹ 0.00</span></div>
-  <div class="summary-line"><span class="lbl">CGST (2.5%) </span><span class="val" id="s-cgst">₹ 0.00</span></div>
-  <div class="summary-line"><span class="lbl">SGST (2.5%)</span><span class="val" id="s-sgst">₹ 0.00</span></div>
-  <div class="summary-line"><span class="lbl">IGST (5%)</span><span class="val" id="s-igst">₹ 0.00</span></div>
+  <div class="summary-line"><span class="lbl" id="lbl-cgst">CGST</span><span class="val" id="s-cgst">₹ 0.00</span></div>
+  <div class="summary-line"><span class="lbl" id="lbl-sgst">SGST</span><span class="val" id="s-sgst">₹ 0.00</span></div>
+  <div class="summary-line" style="display:none"><span class="lbl">IGST</span><span class="val" id="s-igst">₹ 0.00</span></div>
   <div class="summary-line"><span class="lbl">Other Charges</span><span class="val" id="s-other">₹ 0.00</span></div>
   <div class="summary-total">
     <span class="lbl">TOTAL AMOUNT</span>
@@ -774,13 +774,10 @@ function recalculate() {
   const discount = parseFloat(document.getElementById('discount')?.value) || 0;
   const other = parseFloat(document.getElementById('other-charges')?.value) || 0;
   const taxable = subtotal - discount;
-  // Determine GST split: IGST vs CGST+SGST
-  const state = document.getElementById('bill-state')?.value.trim().toLowerCase();
-  const bizState = document.getElementById('biz-address')?.value.toLowerCase();
-  const isIGST = state && bizState && !bizState.includes(state);
-  const cgst = isIGST ? 0 : totalTax / 2;
-  const sgst = isIGST ? 0 : totalTax / 2;
-  const igst = isIGST ? totalTax : 0;
+  // Always intra-state: CGST + SGST only (no IGST)
+  const cgst = totalTax / 2;
+  const sgst = totalTax / 2;
+  const igst = 0;
   const grandTotal = taxable + totalTax + other;
   const received = parseFloat(document.getElementById('received')?.value) || 0;
   const prev = parseFloat(document.getElementById('prev-balance')?.value) || 0;
@@ -792,13 +789,18 @@ function recalculate() {
   document.getElementById('s-taxable').textContent = fmt(taxable);
   document.getElementById('s-cgst').textContent = fmt(cgst);
   document.getElementById('s-sgst').textContent = fmt(sgst);
-  document.getElementById('s-igst').textContent = fmt(igst);
+  document.getElementById('s-igst').textContent = fmt(0); // always 0, hidden via CSS
   document.getElementById('s-other').textContent = fmt(other);
   document.getElementById('s-total').textContent = fmt(grandTotal);
   document.getElementById('s-received').textContent = fmt(received);
   document.getElementById('s-prev').textContent = fmt(prev);
   document.getElementById('s-balance').textContent = fmt(balance);
   document.getElementById('s-words').textContent = 'Total Amount In Words: ' + numberToWords(Math.round(grandTotal)) + ' Rupees';
+  // Update CGST/SGST labels with actual % per item
+  const avgTaxRate = items.length > 0 ? (items.reduce((s,i)=>s+i.tax,0)/items.length) : 0;
+  const halfRate = (avgTaxRate/2).toFixed(1).replace('.0','');
+  document.getElementById('lbl-cgst').textContent = `CGST @${halfRate}%`;
+  document.getElementById('lbl-sgst').textContent = `SGST @${halfRate}%`;
 }
 
 // ── NUMBER TO WORDS ──
@@ -876,12 +878,10 @@ function buildInvoiceHTML() {
   const discount = parseFloat(document.getElementById('discount')?.value) || 0;
   const other = parseFloat(document.getElementById('other-charges')?.value) || 0;
   const taxable = subtotal - discount;
-  const state = document.getElementById('bill-state')?.value.trim().toLowerCase();
-  const bizState = document.getElementById('biz-address')?.value.toLowerCase();
-  const isIGST = state && bizState && !bizState.includes(state);
-  const cgst = isIGST ? 0 : totalTax / 2;
-  const sgst = isIGST ? 0 : totalTax / 2;
-  const igst = isIGST ? totalTax : 0;
+  // Always intra-state: CGST + SGST only
+  const cgst = totalTax / 2;
+  const sgst = totalTax / 2;
+  const igst = 0;
   const grandTotal = taxable + totalTax + other;
   const received = parseFloat(document.getElementById('received')?.value) || 0;
   const prev = parseFloat(document.getElementById('prev-balance')?.value) || 0;
@@ -1001,9 +1001,8 @@ function buildInvoiceHTML() {
           <div class="inv-total-row"><span>Subtotal</span><span>${fmtN(subtotal)}</span></div>
           ${discount > 0 ? `<div class="inv-total-row"><span>Discount</span><span style="color:#ef4444">- ${fmtN(discount)}</span></div>` : ''}
           <div class="inv-total-row"><span>Taxable Amount</span><span>${fmtN(taxable)}</span></div>
-          ${cgst > 0 ? `<div class="inv-total-row"><span>CGST</span><span>${fmtN(cgst)}</span></div>` : ''}
-          ${sgst > 0 ? `<div class="inv-total-row"><span>SGST</span><span>${fmtN(sgst)}</span></div>` : ''}
-          ${igst > 0 ? `<div class="inv-total-row"><span>IGST</span><span>${fmtN(igst)}</span></div>` : ''}
+          ${cgst > 0 ? `<div class="inv-total-row"><span>CGST @${(items[0]?.tax/2||0).toFixed(1).replace('.0','')}%</span><span>${fmtN(cgst)}</span></div>` : ''}
+          ${sgst > 0 ? `<div class="inv-total-row"><span>SGST @${(items[0]?.tax/2||0).toFixed(1).replace('.0','')}%</span><span>${fmtN(sgst)}</span></div>` : ''}
           ${other > 0 ? `<div class="inv-total-row"><span>Other Charges</span><span>${fmtN(other)}</span></div>` : ''}
           <div class="inv-grand-total"><span>TOTAL AMOUNT</span><span>${fmtN(grandTotal)}</span></div>
           <div class="inv-total-row" style="margin-top:8px"><span>Received Amount</span><span>${fmtN(received)}</span></div>
@@ -1060,93 +1059,117 @@ document.getElementById('preview-modal').addEventListener('click', function(e) {
 });
 
 // ── PDF ──
+const PDF_STYLES = `
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:Arial,Helvetica,sans-serif;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  #invoice-preview-content{font-family:Arial,Helvetica,sans-serif;background:#fff;width:100%;color:#1a1a1a;font-size:13px;line-height:1.5;}
+  .inv-header{display:flex;justify-content:space-between;align-items:flex-start;padding:20px 24px 16px;background:#1e1b4b;color:#fff;}
+  .inv-header-left{flex:1;}
+  .inv-biz-name{font-size:22px;font-weight:800;margin-bottom:4px;color:#fff;}
+  .inv-biz-details{font-size:11px;color:rgba(255,255,255,0.85);line-height:1.7;}
+  .inv-logo-box{display:flex;align-items:center;}
+  .inv-logo-box img{max-height:70px;max-width:130px;border-radius:6px;}
+  .inv-badge{background:#f59e0b;color:#fff;padding:4px 14px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;display:inline-block;margin-bottom:10px;}
+  .inv-meta{display:flex;justify-content:space-between;background:#ede9ff;padding:12px 24px;font-size:12px;}
+  .inv-meta-item{display:flex;flex-direction:column;gap:2px;}
+  .inv-meta-item span:first-child{font-weight:700;color:#5b4fcf;font-size:10px;text-transform:uppercase;letter-spacing:.8px;}
+  .inv-meta-item span:last-child{font-weight:600;color:#1e1b4b;}
+  .inv-parties{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e5e7eb;}
+  .inv-party{padding:14px 24px;}
+  .inv-party:first-child{border-right:1px solid #e5e7eb;}
+  .inv-party-title{font-size:10px;font-weight:800;color:#5b4fcf;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+  .inv-party-name{font-weight:700;font-size:13px;margin-bottom:2px;}
+  .inv-party-details{font-size:11px;color:#555;line-height:1.7;}
+  .inv-items-table{width:100%;border-collapse:collapse;}
+  .inv-items-table thead tr{background:#1e1b4b;}
+  .inv-items-table thead th{padding:9px 10px;text-align:left;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#fff;}
+  .inv-items-table thead th:last-child{text-align:right;}
+  .inv-items-table tbody tr:nth-child(even){background:#f5f5fb;}
+  .inv-items-table tbody td{padding:9px 10px;font-size:12px;border-bottom:1px solid #e5e7eb;color:#1a1a1a;}
+  .inv-items-table tbody td:last-child{text-align:right;font-weight:700;}
+  .inv-bottom{display:grid;grid-template-columns:1fr 1fr;}
+  .inv-bank{padding:16px 24px;border-right:1px solid #e5e7eb;}
+  .inv-totals{padding:16px 24px;}
+  .inv-bank-title,.inv-totals-title{font-size:10px;font-weight:800;color:#5b4fcf;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #ede9ff;}
+  .inv-bank-row{display:flex;gap:6px;font-size:11px;margin-bottom:4px;}
+  .inv-bank-row span:first-child{color:#888;min-width:80px;}
+  .inv-bank-row span:last-child{font-weight:600;}
+  .inv-total-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;}
+  .inv-total-row span:last-child{font-weight:600;}
+  .inv-grand-total{background:#1e1b4b;color:#fff;display:flex;justify-content:space-between;padding:10px 14px;border-radius:8px;margin-top:8px;font-weight:700;}
+  .inv-grand-total span:last-child{color:#f59e0b;font-size:16px;}
+  .inv-in-words{padding:8px 24px;background:#f5f5fb;font-size:11px;color:#666;font-style:italic;border-top:1px solid #e5e7eb;}
+  .inv-footer{padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start;border-top:1px solid #e5e7eb;font-size:11px;}
+  .inv-terms{flex:1;}
+  .inv-terms-title{font-weight:800;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#5b4fcf;margin-bottom:6px;}
+  .inv-terms ol{padding-left:16px;color:#555;line-height:1.8;}
+  .inv-sign{text-align:right;min-width:140px;}
+  .inv-sign-line{border-top:1.5px solid #888;width:120px;margin:0 0 4px auto;}
+  .inv-sign p{font-size:10px;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:.8px;}
+  .inv-qr{text-align:center;margin-top:10px;}
+  .inv-qr p{font-size:10px;color:#888;margin-top:4px;}
+`;
+
 async function generatePDF() {
   if (!validateAll()) return;
-  showToast('Generating PDF...', '');
-  const html = buildInvoiceHTML();
-  const wrapper = document.createElement('div');
-  wrapper.innerHTML = html;
-  wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;';
-  // Inject styles
-  const style = document.createElement('style');
-  style.textContent = `
-    body{font-family:'DM Sans',Arial,sans-serif;}
-    #invoice-preview-content{font-family:Arial,sans-serif;background:#fff;width:100%;color:#1a1a1a;font-size:13px;line-height:1.5;}
-    .inv-header{display:flex;justify-content:space-between;align-items:flex-start;padding:20px 24px 16px;border-bottom:3px solid #5b4fcf;background:linear-gradient(135deg,#1e1b4b 0%,#3730a3 100%);color:#fff;}
-    .inv-header-left{flex:1;}
-    .inv-biz-name{font-size:22px;font-weight:800;margin-bottom:4px;}
-    .inv-biz-details{font-size:11px;opacity:.85;line-height:1.7;}
-    .inv-logo-box img{max-height:70px;max-width:130px;object-fit:contain;border-radius:6px;}
-    .inv-badge{background:#f59e0b;color:#fff;padding:4px 14px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;display:inline-block;margin-bottom:10px;}
-    .inv-meta{display:flex;justify-content:space-between;background:#ede9ff;padding:12px 24px;font-size:12px;}
-    .inv-meta-item{display:flex;flex-direction:column;gap:2px;}
-    .inv-meta-item span:first-child{font-weight:700;color:#5b4fcf;font-size:10px;text-transform:uppercase;letter-spacing:.8px;}
-    .inv-meta-item span:last-child{font-weight:600;color:#1e1b4b;}
-    .inv-parties{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e5e7eb;}
-    .inv-party{padding:14px 24px;}
-    .inv-party:first-child{border-right:1px solid #e5e7eb;}
-    .inv-party-title{font-size:10px;font-weight:800;color:#5b4fcf;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
-    .inv-party-name{font-weight:700;font-size:13px;margin-bottom:2px;}
-    .inv-party-details{font-size:11px;color:#555;line-height:1.7;}
-    .inv-items-table{width:100%;border-collapse:collapse;}
-    .inv-items-table thead tr{background:#1e1b4b;color:#fff;}
-    .inv-items-table thead th{padding:9px 10px;text-align:left;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;}
-    .inv-items-table thead th:last-child{text-align:right;}
-    .inv-items-table tbody tr:nth-child(even){background:#f9f9fc;}
-    .inv-items-table tbody td{padding:9px 10px;font-size:12px;border-bottom:1px solid #e5e7eb;}
-    .inv-items-table tbody td:last-child{text-align:right;font-weight:700;}
-    .inv-bottom{display:grid;grid-template-columns:1fr 1fr;}
-    .inv-bank{padding:16px 24px;border-right:1px solid #e5e7eb;}
-    .inv-totals{padding:16px 24px;}
-    .inv-bank-title,.inv-totals-title{font-size:10px;font-weight:800;color:#5b4fcf;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #ede9ff;}
-    .inv-bank-row{display:flex;gap:6px;font-size:11px;margin-bottom:4px;}
-    .inv-bank-row span:first-child{color:#888;min-width:80px;}
-    .inv-bank-row span:last-child{font-weight:600;}
-    .inv-total-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;}
-    .inv-total-row span:last-child{font-weight:600;}
-    .inv-grand-total{background:#1e1b4b;color:#fff;display:flex;justify-content:space-between;padding:10px 14px;border-radius:8px;margin-top:8px;font-weight:700;}
-    .inv-grand-total span:last-child{color:#f59e0b;font-size:16px;}
-    .inv-in-words{padding:8px 24px;background:#f9f9fc;font-size:11px;color:#666;font-style:italic;border-top:1px solid #e5e7eb;}
-    .inv-footer{padding:14px 24px;display:flex;justify-content:space-between;align-items:flex-start;border-top:1px solid #e5e7eb;font-size:11px;}
-    .inv-terms{flex:1;}
-    .inv-terms-title{font-weight:800;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#5b4fcf;margin-bottom:6px;}
-    .inv-terms ol{padding-left:16px;color:#555;line-height:1.8;}
-    .inv-sign{text-align:right;}
-    .inv-sign-line{border-top:1.5px solid #888;width:120px;margin:0 0 4px auto;}
-    .inv-sign p{font-size:10px;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:.8px;}
-    .inv-qr{text-align:center;margin-top:10px;}
-    .inv-qr p{font-size:10px;color:#888;margin-top:4px;}
-  `;
-  wrapper.appendChild(style);
-  document.body.appendChild(wrapper);
+  showToast('⏳ Generating PDF, please wait...', '');
 
-  // Render QR
+  const invHtml = buildInvoiceHTML();
+  const invNo = document.getElementById('inv-no').value || 'Invoice';
   const upi = document.getElementById('upi-id').value.trim();
+
+  // Build full self-contained page inside a hidden iframe
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:1123px;border:none;visibility:hidden;';
+  document.body.appendChild(iframe);
+
+  const iDoc = iframe.contentDocument || iframe.contentWindow.document;
+  iDoc.open();
+  iDoc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+    <style>${PDF_STYLES}<\/style>
+  </head><body>${invHtml}</body></html>`);
+  iDoc.close();
+
+  // Wait for iframe content to render
+  await new Promise(r => setTimeout(r, 400));
+
+  // Generate QR inside iframe if UPI present
   if (upi) {
-    const qrEl = wrapper.querySelector('#inv-qr-gen');
+    const qrEl = iDoc.getElementById('inv-qr-gen');
     if (qrEl) {
-      try { new QRCode(qrEl, { text: `upi://pay?pa=${upi}`, width: 80, height: 80 }); } catch(e){}
+      try {
+        new iframe.contentWindow.QRCode(qrEl, { text: `upi://pay?pa=${upi}`, width: 80, height: 80 });
+        await new Promise(r => setTimeout(r, 300));
+      } catch(e) {}
     }
   }
 
-  await new Promise(r => setTimeout(r, 300));
+  const target = iDoc.getElementById('invoice-preview-content');
 
-  const invNo = document.getElementById('inv-no').value || 'Invoice';
   const opt = {
-    margin: [5,5,5,5],
+    margin: [4, 4, 4, 4],
     filename: `Invoice_${invNo}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      windowWidth: 794,
+      foreignObjectRendering: false
+    },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
   try {
-    await html2pdf().set(opt).from(wrapper.querySelector('#invoice-preview-content')).save();
-    showToast('PDF downloaded! ✓', 'success');
+    await html2pdf().set(opt).from(target).save();
+    showToast('✅ PDF downloaded successfully!', 'success');
   } catch(e) {
-    showToast('PDF error: ' + e.message, 'error');
+    showToast('❌ PDF error: ' + e.message, 'error');
+    console.error(e);
   } finally {
-    document.body.removeChild(wrapper);
+    document.body.removeChild(iframe);
   }
 }
 
